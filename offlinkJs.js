@@ -257,6 +257,587 @@ OfflinkJs.factory('cacheInterceptor', ['localStorageService', '$q', '$location',
         };
     }]);
 
+/**
+ * synchronize the cached http requests with the server
+ */
+OfflinkJs.factory('flnkSynchronizer', ['$http', 'localStorageService', '$q', function ($http, localStorageService, $q) {
+    return {
+        /**
+         * @method syncByPrefix: sync only the developer choice of requests, selected by a predefined prefix
+         * @param prefix
+         * @returns {*|d.promise|Function|promise|k.promise|{then, catch, finally}}
+         */
+        syncByPrefix: function (prefix) {
+            var syncSuccess = [];
+            var syncFailed = [];
+            var syncedRequests = $q.defer();
+            //iterate through the local storage service
+            var lsKeys = localStorageService.keys();
+            var count = 0;
+            angular.forEach(lsKeys, function (value, key) {
+                if (prefix === value.split("<>")[1]) {
+                    var config = localStorageService.get(value);
+            //regenerate the http request with the stored values
+                    $http(
+                        {
+                            method: config.method,
+                            url: config.url,
+                            data: config.data,
+                            headers: config.headers,
+                            flnk_cache: config.flnk_cache,
+                            flnk_auto_sync: config.flnk_auto_sync,
+                            flnk_prefix: config.flnk_prefix,
+                            flnk_sync_callback: config.flnk_sync_callback
+                        }
+                    ).then(function (response) {
+                        if (config.flnk_sync_callback) {
+                            config.flnk_sync_callback(response);
+                        }
+                //remove the synced request from localstorage
+                        localStorageService.remove(value); // TODO: HANDLE THIS!
+                        syncSuccess.push(config);
+                        count++;
+                        if (count === lsKeys.length) {
+                            syncedRequests.resolve({
+                                sync_success: syncSuccess,
+                                sync_failed: syncFailed
+                            });
+                            return syncedRequests.promise;
+
+                        }
+                //if the request failed add it to failed requests
+                    }, function (response) {
+                        syncFailed.push(config);
+                        count++;
+                        if (count === lsKeys.length) {
+                            syncedRequests.resolve({
+                                sync_success: syncSuccess,
+                                sync_failed: syncFailed
+                            });
+                            return syncedRequests.promise;
+                        }
+                    });
+                }
+            });
+            return syncedRequests.promise;
+        },
+        /**
+         * @method syncAuto: auto sync the specified requests without choosing by a prefix
+         * @returns {*|d.promise|Function|promise|k.promise|{then, catch, finally}}
+         */
+        syncAuto: function () {
+            var syncSuccess = [];
+            var syncFailed = [];
+            var syncedRequests = $q.defer();
+            //iterate through the local storage
+            var lsKeys = localStorageService.keys();
+            var count = 0;
+            angular.forEach(lsKeys, function (value, key) {
+                //checks the key contains 'auto'
+                if (value.split("<>").length === 4) {
+                    if (value.split("<>")[3] === 'auto') {
+                //retrieve the specified value
+                        var config = localStorageService.get(value);
+                //regenerate the http request
+                        $http(
+                            {
+                                method: config.method,
+                                url: config.url,
+                                data: config.data,
+                                headers: config.headers,
+                                flnk_cache: config.flnk_cache,
+                                flnk_auto_sync: config.flnk_auto_sync,
+                                flnk_prefix: config.flnk_prefix,
+                                flnk_sync_callback: config.flnk_sync_callback
+                            }
+                        ).then(function (response) {
+                            if (config.flnk_sync_callback) {
+                                config.flnk_sync_callback(response);
+                            }
+                    //remove the synced requests from local storage
+                            localStorageService.remove(value);
+                            syncSuccess.push(config);
+                            count++;
+                            if (count === lsKeys.length) {
+                                syncedRequests.resolve({
+                                    sync_success: syncSuccess,
+                                    sync_failed: syncFailed
+                                });
+                                return syncedRequests.promise;
+
+                            }
+                    //if the synchronization fails add the request to failed requests
+                        }, function (response) {
+                            syncFailed.push(config);
+                            count++;
+                            if (count === lsKeys.length) {
+                                syncedRequests.resolve({
+                                    sync_success: syncSuccess,
+                                    sync_failed: syncFailed
+                                });
+                                return syncedRequests.promise;
+
+                            }
+                        });
+                    }
+                }
+            });
+            return syncedRequests.promise;
+        },
+        /**
+         * @method bulkSync: bulk sync requests
+         * @returns {*|d.promise|Function|promise|k.promise|{then, catch, finally}}
+         */
+        bulkSync: function () {
+            var syncSuccess = [];
+            var syncFailed = [];
+            //iterate through the local storage
+            var lsKeys = localStorageService.keys();
+            var syncedRequests = $q.defer();
+
+            var count = 0;
+
+            angular.forEach(lsKeys, function (value, key) {
+                var config = localStorageService.get(value);
+                //regenerate the http request with the stored values
+                $http(
+                    {
+                        method: config.method,
+                        url: config.url,
+                        data: config.data,
+                        headers: config.headers,
+                        flnk_cache: config.flnk_cache,
+                        flnk_auto_sync: config.flnk_auto_sync,
+                        flnk_prefix: config.flnk_prefix,
+                        flnk_sync_callback: config.flnk_sync_callback
+                    }
+                ).then(function (response) {
+                    if (config.flnk_sync_callback) {
+                        config.flnk_sync_callback(response);
+                    }
+                    //remove the synced requests from local storage
+                    localStorageService.remove(value);
+                    syncSuccess.push(config);
+                    count++;
+                    if (count === lsKeys.length) {
+                        syncedRequests.resolve({
+                            sync_success: syncSuccess,
+                            sync_failed: syncFailed
+                        });
+                        return syncedRequests.promise;
+
+                    }
+                }, function (response) {
+                        //if the synchronization fails add the request to failed requests
+                    syncFailed.push(config);
+                    count++;
+                    if (count === lsKeys.length) {
+                        syncedRequests.resolve({
+                            sync_success: syncSuccess,
+                            sync_failed: syncFailed
+                        });
+                        return syncedRequests.promise;
+
+                    }
+                });
+            });
+            return syncedRequests.promise;
+        }
+    };
+}]);
+
+/**
+ * OfflinkJS database service to provide flexible and efficient handling of
+ * errorneous javascript code and an API for indexedDB
+ */
+OfflinkJs.factory('flnkDatabaseService', [function () {
+    var _db = null;
+    var promise = null;
+    var schemaBuilder = null;
+    //declaration of error messages
+    var EXCEPTION_MESSAGES = {
+        CREATE_DB_BEFORE_TABLES: "Please create a database, before creating tables.",
+        DB_NAME_EMPTY: "Database name cannot be empty",
+        DB_VERSION_NAN: "Database version should be a numeric value",
+        TABLE_SCHEMA_NOT_AN_OBJECT: "Table schema should be an object type",
+        TABLE_SCHEMA_EMPTY: "Table schema cannot be empty",
+        TABLE_NAME_PROP_NOT_FOUND: "Table schema should have a 'name' property",
+        TABLE_COLS_PROP_NOT_FOUND: "Table schema should have a 'columns' property",
+        INSERT_DATA_NOT_AN_OBJECT: "Data to insert should be an object type",
+        INSERT_DATA_ARRAY_EMPTY: "Data array to be inserted cannot be empty",
+        INSERT_DATA_EMPTY: "Data rows to be inserted cannot be empty",
+        TABLE_NAME_EMPTY: "Table name cannot be empty"
+    };
+    /**
+     * @method assert: creating custom exceptions
+     */
+
+    function assert(condition, message) {
+        if (!condition) {
+            throw new OfflinkDbException({
+                message: message,
+                name: 'OfflinkDbException'
+            });
+        } else {
+            return true;
+        }
+    }
+
+    /**
+     * @method validateTableSchema: validate the given table schema whether all the required attributes
+     * are set
+     * @param tables
+     */
+    function validateTableSchema(tables) {
+        try {
+            assert(typeof tables === 'object', EXCEPTION_MESSAGES.TABLE_SCHEMA_NOT_AN_OBJECT);
+            assert(tables.length > 0, EXCEPTION_MESSAGES.TABLE_SCHEMA_EMPTY);
+            if (tables.length > 0) {
+                for (var i = 0; i < tables.length; i++) {
+                    for (var prop in tables[i]) {
+                        assert(tables[i].hasOwnProperty('table_name'), EXCEPTION_MESSAGES.TABLE_NAME_PROP_NOT_FOUND);
+                        assert(tables[i].hasOwnProperty('columns'), EXCEPTION_MESSAGES.TABLE_COLS_PROP_NOT_FOUND);
+                    }
+                }
+            }
+        }
+        catch (e) {
+            throw e;
+        }
+    }
+
+    /**
+     * @method validateInsertBulkData: validate the bulk insert data model and generate error messages
+     * @param data
+     */
+    function validateInsertBulkData(data) {
+        try {
+            assert(typeof data === 'object', EXCEPTION_MESSAGES.INSERT_DATA_NOT_AN_OBJECT);
+            assert(data.length > 0, EXCEPTION_MESSAGES.INSERT_DATA_ARRAY_EMPTY);
+            if (data.length > 0) {
+                for (var i = 0; i < data.length; i++) {
+                    assert(Object.keys(data[i]).length > 0, EXCEPTION_MESSAGES.INSERT_DATA_EMPTY)
+                }
+            }
+        } catch (e) {
+            throw e;
+        }
+    }
+
+    function OfflinkDbException(e) {
+        console.error(e.name, e.message);
+        this.message = e.message;
+        this.name = e.name;
+    }
+
+    return {
+    //equivalent offlinkJS data types for lovefield  data types
+        DATA_TYPES: {
+            ARRAY_BUFFER: lf.Type.ARRAY_BUFFER,
+            BOOLEAN: lf.Type.BOOLEAN,
+            DATE_TIME: lf.Type.DATE_TIME,
+            INTEGER: lf.Type.INTEGER,
+            NUMBER: lf.Type.NUMBER,
+            STRING: lf.Type.STRING,
+            OBJECT: lf.Type.OBJECT
+        },
+    //creating constraints
+        CONSTRAINT_ACTIONS: {
+            CASCADE: lf.ConstraintAction.CASCADE
+        },
+   //creating operations
+        OP: {
+            AND: lf.op.and,
+            OR: lf.op.or,
+            NOT: lf.op.not
+        },
+    //enabling ascending and decending operator access
+        ORDER: {
+            ASC: lf.Order.ASC,
+            DESC: lf.Order.DESC
+        },
+    //enabling usage of aggregate functions for queries
+        FN: {
+            AVG: lf.fn.avg,
+            COUNT: lf.fn.count,
+            DISTINCT: lf.fn.distinct,
+            GEOMEAN: lf.fn.geomean,
+            MAX: lf.fn.max,
+            MIN: lf.fn.min,
+            STDDEV: lf.fn.stddev,
+            SUM: lf.fn.sum
+        },
+    //offlinkJS equivalent for binding params
+        bind: lf.bind,
+        /**
+         * @method createSchema: create schema for the database given the database name and
+         * the version
+         * @param dbName
+         * @param version
+         * @returns {boolean}
+         */
+        createSchema: function (dbName, version) {
+            if (dbName) {
+                if (!isNaN(version)) {
+                    schemaBuilder = lf.schema.create(dbName, version);
+                    return true;
+                } else {
+                //if the version is null throw exception
+                    throw new OfflinkDbException({
+                        message: EXCEPTION_MESSAGES.DB_VERSION_NAN,
+                        name: "OfflinkDbException"
+                    });
+                }
+                //if the database is null throw exception
+            } else {
+                throw new OfflinkDbException({
+                    message: EXCEPTION_MESSAGES.DB_NAME_EMPTY,
+                    name: "OfflinkDbException"
+                });
+            }
+        },
+        /**
+         * @method: initConnection initialize the actual connection to the database
+         * @param dbName
+         * @param version
+         * @returns {*}
+         */
+        initConnection: function (dbName, version) {
+            promise = lf.schema.create(dbName, version).connect();
+            promise.then(function (db) {
+                _db = db;
+            });
+            return promise;
+        },
+        /**
+         * @method createTables: create table structure
+         * @param tables
+         * @returns {*}
+         */
+        createTables: function (tables) {
+            if (schemaBuilder === null) {
+                throw new OfflinkDbException({
+                    message: EXCEPTION_MESSAGES.CREATE_DB_BEFORE_TABLES,
+                    name: "OfflinkDbException"
+                });
+            } else {
+                try {
+                    validateTableSchema(tables);
+                } catch (e) {
+                    throw e;
+                }
+                //iterate through the table schema and add tables
+                for (var i = 0; i < tables.length; i++) {
+                    var sb = schemaBuilder.createTable(tables[i].table_name);
+                    for (var colName in tables[i].columns) {
+                        if (tables[i].columns.hasOwnProperty(colName)) {
+                            sb.addColumn(colName, tables[i].columns[colName]);
+                        }
+                    }
+                //add primary keys and other constraints
+                    sb.addPrimaryKey([tables[i].primary_key]);
+                    if (tables[i].foreign_key) {
+                        if (tables[i].foreign_key.action) {
+                            sb.addForeignKey(tables[i].foreign_key.name, {
+                                local: tables[i].foreign_key.local,
+                                ref: tables[i].foreign_key.ref,
+                                action: tables[i].foreign_key.action
+                            });
+                        } else {
+                            sb.addForeignKey(tables[i].foreign_key.name, {
+                                local: tables[i].foreign_key.local,
+                                ref: tables[i].foreign_key.ref
+                            });
+                        }
+
+                    }
+                }
+                promise = schemaBuilder.connect();
+                promise.then(function (db) {
+                    _db = db;
+                });
+                return promise;
+            }
+        },
+        /**
+         * @method insert: execute insert queries
+         * @param tableName
+         * @param data
+         * @returns {*}
+         */
+        insert: function (tableName, data) {
+            if (!tableName) {
+                throw new OfflinkDbException({
+                    message: EXCEPTION_MESSAGES.TABLE_NAME_EMPTY,
+                    name: "OfflinkDbException"
+                });
+            }
+            try {
+                // TODO: Implement this function
+                //validateInsertSingleData(data);
+            } catch (e) {
+                throw e;
+            }
+            var rows = [];
+            var table, row;
+            if (_db != null) {
+                table = _db.getSchema().table(tableName);
+                rows.push(table.createRow(data[0]));
+                return _db.insertOrReplace().into(table).values(rows).exec();
+            } else {
+                return promise.then(function (db) {
+                    _db = db;
+                    table = _db.getSchema().table(tableName);
+                    rows.push(table.createRow(data[0]));
+                    return _db.insertOrReplace().into(table).values(rows).exec();
+                });
+            }
+        },
+        /**
+         * @method insertBulk: insert bulk data to the table
+         * @param tableName
+         * @param data
+         * @returns {*}
+         */
+        insertBulk: function (tableName, data) {
+            if (!tableName) {
+                throw new OfflinkDbException({
+                    message: EXCEPTION_MESSAGES.TABLE_NAME_EMPTY,
+                    name: "OfflinkDbException"
+                });
+            }
+            try {
+                validateInsertBulkData(data);
+            } catch (e) {
+                throw e;
+            }
+            var rows = [];
+            var table, row;
+            if (_db != null) {
+                table = _db.getSchema().table(tableName);
+
+                for (var i = 0; i < data.length; i++) {
+                    rows.push(table.createRow(data[i]));
+                }
+
+                return _db.insertOrReplace().into(table).values(rows).exec();
+            } else {
+                return promise.then(function (db) {
+                    _db = db;
+                    table = _db.getSchema().table(tableName);
+
+                    for (var i = 0; i < data.length; i++) {
+                        rows.push(table.createRow(data[i]));
+                    }
+
+                    return _db.insertOrReplace().into(table).values(rows).exec();
+                });
+            }
+        },
+        /**
+         * @method getTableRef: return a connection reference to a table
+         * @param tableName
+         * @returns {*}
+         */
+        getTableRef: function (tableName) {
+            return promise.then(function (db) {
+                _db = db;
+                return _db.getSchema().table(tableName);
+            });
+        },
+        /**
+         * @method select: select data from table
+         * @param attrs
+         * @returns {*}
+         */
+        select: function (attrs) {
+            if (_db != null) {
+                return _db.select(attrs);
+            } else {
+                return promise.then(function (db) {
+                    _db = db;
+                    return _db.select(attrs);
+                });
+            }
+        },
+        /**
+         * @method  getAllFromTable: return all te rows from a table
+         * @param tableName
+         * @returns {*}
+         */
+        getAllFromTable: function (tableName) {
+            return promise.then(function (db) {
+                _db = db;
+                var table = _db.getSchema().table(tableName);
+                return _db.select().from(table).exec().then(function (results) {
+                    return results;
+                });
+            });
+        },
+        /**
+         * @method selectByIdFromTable: select a specifed row from a table
+         * @param tableName
+         * @param id
+         * @returns {*}
+         */
+        selectByIdFromTable: function (tableName, id) {
+            return promise.then(function (db) {
+                _db = db;
+                var table = _db.getSchema().table(tableName);
+                return _db.select().from(table).where(table.id.eq(id)).exec().then(function (results) {
+                    return results;
+                });
+            });
+        },
+        /**
+         *@method update: update the table with new data
+         * @param table
+         * @returns {*}
+         */
+        update: function (table) {
+            if (_db != null) {
+                return _db.update(table);
+            } else {
+                return promise.then(function (db) {
+                    _db = db;
+                    return _db.update(table);
+                });
+            }
+        },
+        /**
+         * @method:deleteFrom delete data from a table
+         * @param table
+         * @returns {*}
+         */
+        deleteFrom: function (table) {
+            if (_db != null) {
+                return _db.delete().from(table);
+            } else {
+                return promise.then(function (db) {
+                    _db = db;
+                    return _db.delete().from(table);
+                });
+            }
+        },
+        /**
+         * @method deleteAllFromTable: delete all the data from a table
+         * @param table
+         * @returns {*}
+         */
+        deleteAllFromTable: function (table) {
+            if (_db != null) {
+                return _db.delete().from(table).exec();
+            } else {
+                return promise.then(function (db) {
+                    _db = db;
+                    return _db.delete().from(table).exec();
+                });
+            }
+        }
+
+    };
+}]);
+
 OfflinkJs.factory('flinkPrefetchService', ['$window', '$indexedDB', 'localStorageService', '$location', '$document', '$http',
     function ($window, $indexedDB, localStorageService, $location, $document, $http) {
         var pc = $location.protocol() + "://";
